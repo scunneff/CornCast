@@ -167,7 +167,7 @@ input[type=date]:focus{border-color:var(--teal)}
     <div class="field full">
       <label>🗓 Target Date</label>
       <input type="date" id="sel-date" onchange="onDateChange()">
-      <div style="font-size:.67rem;color:var(--muted);margin-top:.22rem">Mar 1 – Jun 30 · fetches full season archive (Mar 1→yesterday) + 16-day forecast</div>
+      <div style="font-size:.67rem;color:var(--muted);margin-top:.22rem">Mar 1 – Jun 30 · fetches archive from Jan 1 (column cold model) + 16-day forecast</div>
     </div>
     <select id="sel-month" style="display:none"><option value="3">March</option><option value="4" selected>April</option><option value="5">May</option><option value="6">June</option></select>
     <div class="sdiv"></div>
@@ -844,7 +844,12 @@ function computeSurfaceRipeness(days14, month) {
 // Ref: Jennings et al. (2018) The Cryosphere 12; DeWalle & Rango (2008); Fierz (2011)
 function computeColumnColdContent(seasonDays, swePct, month) {
   var SEASONAL_BASELINE = {3:0.85, 4:0.60, 5:0.35, 6:0.15};
-  var ccc = SEASONAL_BASELINE[month] || 0.35;
+  // If seasonDays begins in Jan or Feb, start from near-peak cold reserve (deep winter).
+  // The existing ageFactor weighting naturally discounts older days — no other changes needed.
+  // If only Mar+ data is available (archive fallback), use the month-specific baseline.
+  var hasPreSeason = seasonDays.length > 0 &&
+    new Date(seasonDays[0].date + 'T12:00:00').getMonth() < 2; // month index 0=Jan, 1=Feb
+  var ccc = hasPreSeason ? 0.95 : (SEASONAL_BASELINE[month] || 0.35);
   var N = seasonDays.length;
   seasonDays.forEach(function(d, i) {
     var ageFactor = 0.3 + (i / Math.max(N - 1, 1)) * 0.70; // older 0.30, recent 1.00
@@ -910,7 +915,8 @@ function parseDailyJson(json, pk) {
 function fetchWeatherData(pk, targetDate, swePct, cb) {
   var tgt = new Date(targetDate + 'T12:00:00');
   var year = tgt.getFullYear();
-  var seasonStart = year + '-03-01';
+  var cccStart    = year + '-01-01'; // Jan 1: full cold history for column model
+  var seasonStart = year + '-03-01'; // Mar 1: display / strip / surface-ripeness anchor
   var today = new Date();
   var yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   var todayStr = fmtDate(today);
@@ -925,7 +931,7 @@ function fetchWeatherData(pk, targetDate, swePct, cb) {
     +'&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,windspeed_10m_max,cloudcover_mean'
     +'&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch'
     +'&timezone=America%2FDenver'
-    +'&start_date='+seasonStart+'&end_date='+yesterdayStr;
+    +'&start_date='+cccStart+'&end_date='+yesterdayStr;
 
   var forecastUrl = 'https://api.open-meteo.com/v1/forecast'
     +'?latitude='+pk.la+'&longitude='+pk.lo
@@ -959,15 +965,20 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
   var archiveFailed = !archiveJson;
   var forecastFailed = !forecastJson;
 
-  var archiveDays = parseDailyJson(archiveJson, pk);   // Mar 1 → yesterday
+  var archiveDays = parseDailyJson(archiveJson, pk);   // Jan 1 → yesterday (extended for CCC)
   var forecastDays = parseDailyJson(forecastJson, pk); // today → today+15
 
   // If both failed, bail
   if(!archiveDays.length && !forecastDays.length){ cb(null); return; }
 
-  // Merge: build date map; forecast takes precedence for overlap
+  // Split archive: pre-season (Jan/Feb) goes only to CCC; display stays anchored to Mar 1
+  var marchFirst = tgt.getFullYear() + '-03-01';
+  var preCCCDays      = archiveDays.filter(function(d){ return d.date < marchFirst; });
+  var seasonArchiveDays = archiveDays.filter(function(d){ return d.date >= marchFirst; });
+
+  // Merge: build date map from Mar 1 onward; forecast takes precedence for overlap
   var dayMap = {};
-  archiveDays.forEach(function(d){ dayMap[d.date] = {day:d, isForecast:false}; });
+  seasonArchiveDays.forEach(function(d){ dayMap[d.date] = {day:d, isForecast:false}; });
   forecastDays.forEach(function(d){ dayMap[d.date] = {day:d, isForecast:true}; });
 
   var sortedEntries = Object.keys(dayMap).sort().map(function(k){ return dayMap[k]; });
@@ -990,8 +1001,9 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
   var histStart = Math.max(0, tgtIdx - 14);
   var histDays14 = allDays.slice(histStart, tgtIdx);
 
-  // seasonDaysForCCC = all days from season start to day before target
-  var seasonDaysForCCC = allDays.slice(0, tgtIdx);
+  // seasonDaysForCCC = Jan 1 pre-season days + all Mar-onward days up to target
+  // Pre-season Jan/Feb data captures real warm-year depletion of column cold content
+  var seasonDaysForCCC = preCCCDays.concat(allDays.slice(0, tgtIdx));
 
   // Two-layer model
   var surfaceRipeness, columnColdContent, effIsoPrb;

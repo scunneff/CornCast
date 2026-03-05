@@ -252,8 +252,16 @@ mechanism as in-season warmth — above-40°F maxima and above-freezing nights p
 column slowly (4.5× slower than surface). A warm Jan/Feb genuinely depletes cold reserve
 that would otherwise persist into April. The 0.95 starting baseline reflects that on Jan 1,
 the snowpack at 12,000' is typically at or near maximum cold content for the water year.
----
 
+---
+Session 18 — v21 (CCC pre-season extension + two bug fixes)
+Motivation: The 2025 Front Range winter had significant above-40°F warm spells in January and February. The v20 archive window (Mar 1 → yesterday) missed all of that pre-season column depletion, causing CornCast to overestimate cold reserve heading into spring. Extending the archive start to Jan 1 captures warm-winter depletion.
+Archive start extended Jan 1 → Mar 1: seasonStart in fetchWeatherData changed from year + '-03-01' to year + '-01-01'. hasPreSeason flag detects when seasonDays[0] falls in Jan or Feb (getMonth() < 2). When true, CCC initializes at 0.95 (deep-winter baseline) instead of the month-specific SEASONAL_BASELINE.
+Bug 1 fixed — snow bonus missing ageFactor: if (d.snowfall > 1.0) ccc += 0.04 had no age weighting. A January storm counted identically to a March storm, adding unweighted +0.28 for 7 winter storms that completely overwhelmed the correctly age-weighted -0.10 warm-day depletion. Fixed: ccc += 0.04 * ageFactor. Diagnosis: warm winters were producing higher CCC than the Mar 1 model — backwards.
+Bug 2 fixed — cold rebuild running in pre-season: The colCold term (tmax < 25°F × 0.003 × ageFactor) ran unconditionally on every Jan/Feb day. Cold January days are normal winter — they don't rebuild anything beyond the 0.95 starting baseline. The cold rebuild coefficient dominates over the heat depletion coefficient across 60 days of sub-25°F weather. Fixed: colCold and snow bonus gated behind if (d.date >= d.date.slice(0,4) + '-03-01'). Pre-season days apply only heat depletion and warm-night penetration terms.
+Net physics effect: For a warm pre-season (multiple days above 40°F in Jan/Feb), Jan 1 model now correctly produces slightly lower CCC than the Mar 1 baseline. For a normal or cold pre-season, the difference is minimal. The correction compounds meaningfully for April and May targets where pre-season history has more weight.
+
+----
 
 ## Architecture Decisions (Standing)
 

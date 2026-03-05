@@ -226,8 +226,34 @@ Step 7 - Terrain Factor: star rubric moved inline into the driver row.
 CSS added: .driver-step-head -- teal left-border section label, uppercase tracking.
 
 Bug fixed: unescaped apostrophe (won't) in a single-quoted JS string in buildDrivers silently killed the entire script, emptying the peak selector. Caught via Node.js Function() syntax check. Fixed to "will not."
-
 ---
+
+### Session [N] — v21 (Jan 1 Column Cold Content Window)
+
+**Motivation:** A warm January–February depletes column cold content before March 1, but the
+previous archive fetch started on Mar 1, so the model never saw it. This year's Front Range
+warm spell is a clear example where this materially affects accuracy.
+
+**Changes:**
+- Archive fetch start date extended from Mar 1 to Jan 1 (`cccStart = year + '-01-01'`).
+- `processWeatherData` splits the extended archive into `preCCCDays` (Jan/Feb, CCC-only) and
+  `seasonArchiveDays` (Mar+, display/strip/surface ripeness). The weather strip, ripeness
+  trajectory chart, and `allDays` remain anchored to March 1 — no display behavior changed.
+- `seasonDaysForCCC` now = `preCCCDays.concat(allDays.slice(0, tgtIdx))`, feeding the full
+  Jan 1 → target window into `computeColumnColdContent`.
+- `computeColumnColdContent` auto-detects pre-season data: if `seasonDays[0]` is in Jan or Feb,
+  starts from baseline 0.95 (deep winter cold reserve) instead of the month-specific Mar/Apr/May
+  baseline. The existing linear ageFactor (0.30 oldest → 1.00 most recent) already correctly
+  discounts the older January days — no coefficient changes required.
+- Archive URL hint text updated to reflect Jan 1 start.
+
+**Physics rationale:** Pre-season warm spells reduce column cold content through the same
+mechanism as in-season warmth — above-40°F maxima and above-freezing nights penetrate the
+column slowly (4.5× slower than surface). A warm Jan/Feb genuinely depletes cold reserve
+that would otherwise persist into April. The 0.95 starting baseline reflects that on Jan 1,
+the snowpack at 12,000' is typically at or near maximum cold content for the water year.
+---
+
 
 ## Architecture Decisions (Standing)
 

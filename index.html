@@ -1116,7 +1116,7 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
       ccc = SB2[dm] || 0.35;
       eip = sr;
     }
-    ripenessTrajectory.push({date:d.date, surfaceRipeness:sr, columnColdContent:ccc, effectiveIsoPrb:eip, isForecast:sortedEntries[j].isForecast});
+    ripenessTrajectory.push({date:d.date, surfaceRipeness:sr, columnColdContent:ccc, effectiveIsoPrb:eip, isForecast:sortedEntries[j].isForecast, tmin:d.tmin, tmax:d.tmax, snowfall:d.snowfall||0});
   }
 
   cb({
@@ -1367,7 +1367,7 @@ function prefillForecast(wd) {
   crustPreview();
 }
 
-// ── RIPENESS CHART (v13) — Full Season + Forecast, Two-Layer ─────────────
+// ── RIPENESS CHART (v22) — Pannable + Temp Lines + Snowfall Bars ──────────
 function drawRipenessChart(canvasId, wd, month) {
   var canvas = document.getElementById(canvasId);
   if(!canvas || !wd || !wd.ripenessTrajectory || !wd.ripenessTrajectory.length) return;
@@ -1377,36 +1377,48 @@ function drawRipenessChart(canvasId, wd, month) {
   var todayStr = wd.todayStr;
   var targetDate = wd.targetDate;
 
-  var W = canvas.offsetWidth || 320;
-  var H = 200;
+  var PX_PER_DAY = 7;
+  var PAD = {top:28, right:44, bottom:36, left:32};
+  var cW = N * PX_PER_DAY;
+  var H = 240;
+  var W = PAD.left + PAD.right + cW;
+  var cH = H - PAD.top - PAD.bottom;
+
+  // Snow bar strip occupies bottom 16px of chart area
+  var SNOW_H = 16;
+  var dataBot = PAD.top + cH - SNOW_H; // pack health + temp lines ceiling
+  var snowBot  = PAD.top + cH;
+
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
   canvas.width  = W * (window.devicePixelRatio || 1);
   canvas.height = H * (window.devicePixelRatio || 1);
   var ctx = canvas.getContext('2d');
   ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
 
-  var PAD = {top:28, right:44, bottom:36, left:14};
-  var cW = W - PAD.left - PAD.right;
-  var cH = H - PAD.top - PAD.bottom;
+  function xPos(i) { return PAD.left + i * PX_PER_DAY + PX_PER_DAY / 2; }
+  function yH(r)   { return PAD.top + (dataBot - PAD.top) * (1 - Math.max(0, Math.min(1, r))); }
 
-  function xPos(i) { return PAD.left + (i / Math.max(N - 1, 1)) * cW; }
-  // yHealth: 1.0 = ideal cold pack (top of chart), 0 = fully isothermal (bottom)
-  function yH(r) { return PAD.top + cH - Math.max(0,Math.min(1,r)) * cH; }
+  // Temp Y axis — fixed spring alpine range
+  var TEMP_MIN = -10, TEMP_MAX = 65;
+  function yT(t) {
+    var frac = (t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN);
+    return PAD.top + (dataBot - PAD.top) * (1 - Math.max(0, Math.min(1, frac)));
+  }
 
-  // ── Reframe: both lines as "pack health" — high = better conditions ──
-  // Surface freeze quality  = 1 − surfaceRipeness  (1=strong freeze potential, 0=isothermal surface)
-  // Column cold reserve     = columnColdContent     (1=full cold reserve, 0=isothermal column)
-  function sfq(t)  { return 1.0 - t.surfaceRipeness; }   // surface freeze quality
-  function ccr(t)  { return t.columnColdContent; }         // column cold reserve
-  function comb(t) { return 1.0 - t.effectiveIsoPrb; }    // combined health (for shading)
+  // Metric accessors
+  function sfq(t)  { return 1.0 - t.surfaceRipeness; }
+  function ccr(t)  { return t.columnColdContent; }
+  function comb(t) { return 1.0 - t.effectiveIsoPrb; }
 
-  // ── Find today and target indices ──
+  // Find today and target indices
   var todayIdx = -1, tgtIdx = -1;
   for(var i=0;i<N;i++){
     if(traj[i].date===todayStr) todayIdx=i;
     if(traj[i].date===targetDate) tgtIdx=i;
   }
 
-  // ── Grid lines + Y labels ──
+  // ── Right Y axis: pack health % grid lines ──
   ctx.font = '9px -apple-system,sans-serif';
   [0, 0.25, 0.50, 0.75, 1.0].forEach(function(r){
     var y = yH(r);
@@ -1420,7 +1432,23 @@ function drawRipenessChart(canvasId, wd, month) {
     ctx.fillText(Math.round(r*100)+'%', PAD.left + cW + 4, y + 3);
   });
 
-  // ── 50% quality threshold — marginal zone ──
+  // ── Left Y axis: temperature reference lines ──
+  [0, 32, 50].forEach(function(t) {
+    var y = yT(t);
+    if(y < PAD.top || y > dataBot) return;
+    var is32 = (t === 32);
+    ctx.strokeStyle = is32 ? 'rgba(100,180,255,0.35)' : 'rgba(100,140,160,0.18)';
+    ctx.lineWidth = is32 ? 1 : 0.5;
+    ctx.setLineDash(is32 ? [2,3] : [1,4]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = is32 ? 'rgba(120,190,255,0.75)' : 'rgba(120,160,180,0.45)';
+    ctx.textAlign = 'right';
+    ctx.font = is32 ? 'bold 8px -apple-system,sans-serif' : '8px -apple-system,sans-serif';
+    ctx.fillText(t+'°', PAD.left - 3, y + 3);
+  });
+
+  // ── 50% marginal zone line ──
   ctx.strokeStyle = 'rgba(255,71,87,0.30)';
   ctx.lineWidth = 1;
   ctx.setLineDash([4,3]);
@@ -1431,21 +1459,36 @@ function drawRipenessChart(canvasId, wd, month) {
   ctx.font = '8px -apple-system,sans-serif';
   ctx.fillText('marginal', PAD.left + cW - 2, yH(0.5) - 3);
 
-  // ── Uncertainty shading on forecast zone (around combined health) ──
+  // ── Snowfall bars (bottom strip) ──
+  var MAX_SNOW_DISP = 10; // 10" = full SNOW_H
+  for(var si=0; si<N; si++) {
+    var sf = traj[si].snowfall || 0;
+    if(sf < 0.3) continue;
+    var bh = Math.min(1, sf / MAX_SNOW_DISP) * (SNOW_H - 2);
+    var bx = PAD.left + si * PX_PER_DAY;
+    var by = snowBot - bh;
+    ctx.fillStyle = traj[si].isForecast ? 'rgba(180,220,255,0.40)' : 'rgba(210,235,255,0.75)';
+    ctx.fillRect(bx + 0.5, by, PX_PER_DAY - 1, bh);
+    if(sf >= 4) {
+      ctx.fillStyle = 'rgba(210,235,255,0.9)';
+      ctx.font = '7px -apple-system,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('❄', bx + PX_PER_DAY/2, by - 1);
+    }
+  }
+
+  // ── Forecast uncertainty shading ──
   if(todayIdx >= 0) {
-    var firstFcstIdx = todayIdx;
     ctx.save();
     ctx.beginPath();
-    for(var fi=firstFcstIdx; fi<N; fi++){
-      var daysAhead = fi - firstFcstIdx;
-      var unc = Math.min(0.30, daysAhead * 0.015);
+    for(var fi=todayIdx; fi<N; fi++){
+      var unc = Math.min(0.30, (fi - todayIdx) * 0.015);
       var cv = comb(traj[fi]);
       var xx = xPos(fi), yy = yH(Math.min(1, cv + unc));
-      if(fi===firstFcstIdx) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+      if(fi===todayIdx) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
     }
-    for(var fi2=N-1; fi2>=firstFcstIdx; fi2--){
-      var daysAhead2 = fi2 - firstFcstIdx;
-      var unc2 = Math.min(0.30, daysAhead2 * 0.015);
+    for(var fi2=N-1; fi2>=todayIdx; fi2--){
+      var unc2 = Math.min(0.30, (fi2 - todayIdx) * 0.015);
       var cv2 = comb(traj[fi2]);
       ctx.lineTo(xPos(fi2), yH(Math.max(0, cv2 - unc2)));
     }
@@ -1455,17 +1498,16 @@ function drawRipenessChart(canvasId, wd, month) {
     ctx.restore();
   }
 
-  // ── Helper: draw a bezier line ──
+  // ── Helper: draw a bezier polyline ──
   function drawLine(pts, color, width, dashed) {
     if(!pts.length) return;
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
+    ctx.strokeStyle = color; ctx.lineWidth = width;
     if(dashed) ctx.setLineDash([4,3]);
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
     for(var p=1;p<pts.length;p++){
-      var x0=pts[p-1].x, y0=pts[p-1].y, x1=pts[p].x, y1=pts[p].y;
+      var x0=pts[p-1].x,y0=pts[p-1].y,x1=pts[p].x,y1=pts[p].y;
       ctx.bezierCurveTo((x0+x1)/2,y0,(x0+x1)/2,y1,x1,y1);
     }
     ctx.stroke();
@@ -1473,126 +1515,123 @@ function drawRipenessChart(canvasId, wd, month) {
     ctx.restore();
   }
 
-  // ── Draw Column Cold Reserve — blue (archive=solid, forecast=dashed) ──
-  var ccrSolid=[], ccrDashed=[];
-  for(var k=0;k<N;k++){
-    var pt = {x:xPos(k), y:yH(ccr(traj[k]))};
-    if(traj[k].isForecast) ccrDashed.push(pt); else ccrSolid.push(pt);
+  // Segment array into solid/dashed, stitch at boundary
+  function segLine(mapFn) {
+    var solid=[], dashed=[];
+    for(var k=0;k<N;k++){
+      var pt={x:xPos(k),y:mapFn(traj[k])};
+      if(traj[k].isForecast) dashed.push(pt); else solid.push(pt);
+    }
+    if(solid.length && dashed.length) dashed.unshift(solid[solid.length-1]);
+    return {solid:solid, dashed:dashed};
   }
-  if(ccrSolid.length && ccrDashed.length) ccrDashed.unshift(ccrSolid[ccrSolid.length-1]);
-  // Shaded fill under column line
-  if(ccrSolid.length > 1) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(ccrSolid[0].x, ccrSolid[0].y);
-    for(var cp=1;cp<ccrSolid.length;cp++){
-      var cx0=ccrSolid[cp-1].x, cy0=ccrSolid[cp-1].y, cx1=ccrSolid[cp].x, cy1=ccrSolid[cp].y;
+
+  // ── Column Cold Reserve — blue, with fill ──
+  var ccrS = segLine(function(t){ return yH(ccr(t)); });
+  if(ccrS.solid.length > 1) {
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(ccrS.solid[0].x, ccrS.solid[0].y);
+    for(var cp=1;cp<ccrS.solid.length;cp++){
+      var cx0=ccrS.solid[cp-1].x,cy0=ccrS.solid[cp-1].y,cx1=ccrS.solid[cp].x,cy1=ccrS.solid[cp].y;
       ctx.bezierCurveTo((cx0+cx1)/2,cy0,(cx0+cx1)/2,cy1,cx1,cy1);
     }
-    ctx.lineTo(ccrSolid[ccrSolid.length-1].x, PAD.top+cH);
-    ctx.lineTo(ccrSolid[0].x, PAD.top+cH);
-    ctx.closePath();
-    var cgrad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top+cH);
-    cgrad.addColorStop(0,   'rgba(93,184,240,0.14)');
-    cgrad.addColorStop(1,   'rgba(93,184,240,0.02)');
-    ctx.fillStyle = cgrad;
-    ctx.fill();
-    ctx.restore();
+    ctx.lineTo(ccrS.solid[ccrS.solid.length-1].x, dataBot);
+    ctx.lineTo(ccrS.solid[0].x, dataBot); ctx.closePath();
+    var cg=ctx.createLinearGradient(0,PAD.top,0,dataBot);
+    cg.addColorStop(0,'rgba(93,184,240,0.14)'); cg.addColorStop(1,'rgba(93,184,240,0.02)');
+    ctx.fillStyle=cg; ctx.fill(); ctx.restore();
   }
-  drawLine(ccrSolid,  'rgba(93,184,240,0.80)', 1.8, false);
-  drawLine(ccrDashed, 'rgba(93,184,240,0.42)', 1.8, true);
+  drawLine(ccrS.solid,  'rgba(93,184,240,0.80)', 1.8, false);
+  drawLine(ccrS.dashed, 'rgba(93,184,240,0.42)', 1.8, true);
 
-  // ── Draw Surface Freeze Quality = 1 − surfaceRipeness — orange ──
-  var sfqSolid=[], sfqDashed=[];
-  for(var m2=0;m2<N;m2++){
-    var pt2 = {x:xPos(m2), y:yH(sfq(traj[m2]))};
-    if(traj[m2].isForecast) sfqDashed.push(pt2); else sfqSolid.push(pt2);
-  }
-  if(sfqSolid.length && sfqDashed.length) sfqDashed.unshift(sfqSolid[sfqSolid.length-1]);
-  drawLine(sfqSolid,  'rgba(255,144,64,0.95)', 2.2, false);
-  drawLine(sfqDashed, 'rgba(255,144,64,0.55)', 2.2, true);
+  // ── Surface Freeze Quality — orange ──
+  var sfqS = segLine(function(t){ return yH(sfq(t)); });
+  drawLine(sfqS.solid,  'rgba(255,144,64,0.95)', 2.2, false);
+  drawLine(sfqS.dashed, 'rgba(255,144,64,0.55)', 2.2, true);
+
+  // ── Tmax — warm red/orange thin line ──
+  var tmaxS = segLine(function(t){ return yT(t.tmax != null ? t.tmax : TEMP_MIN); });
+  // filter out nulls
+  tmaxS.solid  = tmaxS.solid.filter(function(_,i){ return traj[i] && traj[i].tmax != null; });
+  tmaxS.dashed = tmaxS.dashed.filter(function(_,i){ return traj[i] && traj[i].tmax != null; });
+  drawLine(tmaxS.solid,  'rgba(255,100,55,0.58)', 1.4, false);
+  drawLine(tmaxS.dashed, 'rgba(255,100,55,0.32)', 1.4, true);
+
+  // ── Tmin — cool blue-gray thin line ──
+  var tminS = segLine(function(t){ return yT(t.tmin != null ? t.tmin : TEMP_MIN); });
+  tminS.solid  = tminS.solid.filter(function(_,i){ return traj[i] && traj[i].tmin != null; });
+  tminS.dashed = tminS.dashed.filter(function(_,i){ return traj[i] && traj[i].tmin != null; });
+  drawLine(tminS.solid,  'rgba(140,205,245,0.60)', 1.4, false);
+  drawLine(tminS.dashed, 'rgba(140,205,245,0.34)', 1.4, true);
 
   // ── Today vertical line ──
   if(todayIdx >= 0) {
     var tx = xPos(todayIdx);
-    ctx.strokeStyle = 'rgba(255,209,102,0.55)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3,3]);
-    ctx.beginPath(); ctx.moveTo(tx, PAD.top); ctx.lineTo(tx, PAD.top+cH); ctx.stroke();
+    ctx.strokeStyle='rgba(255,209,102,0.55)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(tx,PAD.top); ctx.lineTo(tx,PAD.top+cH); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(255,209,102,0.8)';
-    ctx.font = 'bold 8px -apple-system,sans-serif';
-    ctx.textAlign = 'center';
+    ctx.fillStyle='rgba(255,209,102,0.8)';
+    ctx.font='bold 8px -apple-system,sans-serif'; ctx.textAlign='center';
     ctx.fillText('Today', tx, PAD.top - 3);
   }
 
-  // ── Target date marker + dot at surface freeze quality ──
+  // ── Target date vertical line + dot ──
   if(tgtIdx >= 0) {
     var ttx = xPos(tgtIdx);
-    ctx.strokeStyle = 'rgba(0,212,170,0.65)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4,2]);
-    ctx.beginPath(); ctx.moveTo(ttx, PAD.top); ctx.lineTo(ttx, PAD.top+cH); ctx.stroke();
+    ctx.strokeStyle='rgba(0,212,170,0.65)'; ctx.lineWidth=1.5; ctx.setLineDash([4,2]);
+    ctx.beginPath(); ctx.moveTo(ttx,PAD.top); ctx.lineTo(ttx,PAD.top+cH); ctx.stroke();
     ctx.setLineDash([]);
-    // Dot at surface freeze quality value
-    var sfqTgt = sfq(traj[tgtIdx]);
-    ctx.beginPath();
-    ctx.arc(ttx, yH(sfqTgt), 4, 0, Math.PI*2);
-    ctx.fillStyle = '#00d4aa';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,212,170,0.4)'; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(ttx, yH(sfq(traj[tgtIdx])), 4, 0, Math.PI*2);
+    ctx.fillStyle='#00d4aa'; ctx.fill();
+    ctx.strokeStyle='rgba(0,212,170,0.4)'; ctx.lineWidth=2; ctx.stroke();
   }
 
-  // ── X-axis: weekly tick marks + Today + Target ──
-  var alwaysLabeled = {};
+  // ── X-axis date labels ──
+  var alwaysLabeled={};
   if(todayIdx>=0) alwaysLabeled[todayIdx]=true;
   if(tgtIdx>=0) alwaysLabeled[tgtIdx]=true;
-
-  ctx.font = '8px -apple-system,sans-serif';
-  var lastLabelX = -999;
+  ctx.font='8px -apple-system,sans-serif';
+  var lastLabelX=-999;
+  var MNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   for(var xi=0;xi<N;xi++){
-    var d = traj[xi];
-    var dt = new Date(d.date+'T12:00:00');
-    var isWeekly = (dt.getDay()===1 || dt.getDate()===1); // Monday or 1st of month
-    var isSpecial = alwaysLabeled[xi];
-    if(!isWeekly && !isSpecial) continue;
-    var labelX = xPos(xi);
-    if(!isSpecial && labelX - lastLabelX < 28) continue;
-    // FIX: getMonth() is 0-based (0=Jan, 2=Mar) — use direct array index
-    var MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var mon = MNAMES[dt.getMonth()];
-    var label = isSpecial && xi===todayIdx ? '' : (dt.getDate()===1 ? mon+' 1' : mon+' '+dt.getDate());
-    if(isSpecial && xi===tgtIdx) { label = 'Target'; }
+    var dd=traj[xi], dt=new Date(dd.date+'T12:00:00');
+    var isWeekly=(dt.getDay()===1||dt.getDate()===1);
+    var isSpecial=alwaysLabeled[xi];
+    if(!isWeekly&&!isSpecial) continue;
+    var labelX=xPos(xi);
+    if(!isSpecial && labelX-lastLabelX<28) continue;
+    var mon=MNAMES[dt.getMonth()];
+    var label=isSpecial&&xi===todayIdx?'':(dt.getDate()===1?mon+' 1':mon+' '+dt.getDate());
+    if(isSpecial&&xi===tgtIdx) label='Target';
     if(!label) continue;
-    ctx.fillStyle = isSpecial ? (xi===tgtIdx?'rgba(0,212,170,0.7)':'rgba(255,209,102,0.7)') : 'rgba(120,165,190,0.55)';
-    ctx.textAlign = 'center';
+    ctx.fillStyle=isSpecial?(xi===tgtIdx?'rgba(0,212,170,0.7)':'rgba(255,209,102,0.7)'):'rgba(120,165,190,0.55)';
+    ctx.textAlign='center';
     ctx.fillText(label, labelX, H - PAD.bottom + 10);
-    lastLabelX = labelX;
+    lastLabelX=labelX;
   }
 
   // ── Legend ──
-  var lx = PAD.left + 2, ly = PAD.top - 8;
-  // Surface freeze quality
-  ctx.strokeStyle = '#ff9040'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx+10, ly); ctx.stroke();
-  ctx.beginPath(); ctx.arc(lx+5, ly, 2.5, 0, Math.PI*2);
-  ctx.fillStyle='#ff9040'; ctx.fill();
-  ctx.fillStyle='rgba(255,144,64,0.85)'; ctx.font='8px -apple-system,sans-serif'; ctx.textAlign='left';
-  ctx.fillText('Surface freeze', lx+13, ly+3);
-  // Column cold reserve
-  var lx2 = lx + 88;
-  ctx.strokeStyle='rgba(93,184,240,0.75)'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(lx2, ly); ctx.lineTo(lx2+10, ly); ctx.stroke();
-  ctx.fillStyle='rgba(93,184,240,0.85)';
-  ctx.fillText('Column cold', lx2+13, ly+3);
-  // Forecast note
-  var lx3 = lx2 + 74;
-  ctx.strokeStyle='rgba(255,209,102,0.55)'; ctx.lineWidth=1.5;
-  ctx.setLineDash([3,3]);
-  ctx.beginPath(); ctx.moveTo(lx3, ly); ctx.lineTo(lx3+10, ly); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle='rgba(255,209,102,0.7)';
-  ctx.fillText('Fcst', lx3+13, ly+3);
+  var lx=PAD.left+2, ly=PAD.top-8;
+  function legendLine(x,col,w){ ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x,ly);ctx.lineTo(x+10,ly);ctx.stroke(); }
+  function legendText(x,col,txt){ ctx.fillStyle=col;ctx.textAlign='left';ctx.font='8px -apple-system,sans-serif';ctx.fillText(txt,x,ly+3); }
+  legendLine(lx,'#ff9040',2); ctx.beginPath();ctx.arc(lx+5,ly,2.5,0,Math.PI*2);ctx.fillStyle='#ff9040';ctx.fill();
+  legendText(lx+13,'rgba(255,144,64,0.85)','Sfc freeze');
+  lx+=80; legendLine(lx,'rgba(93,184,240,0.75)',2); legendText(lx+13,'rgba(93,184,240,0.85)','Col.cold');
+  lx+=60; legendLine(lx,'rgba(255,100,55,0.55)',1.5); legendText(lx+13,'rgba(255,120,70,0.85)','Hi°F');
+  lx+=40; legendLine(lx,'rgba(140,205,245,0.55)',1.5); legendText(lx+13,'rgba(140,205,245,0.85)','Lo°F');
+  lx+=40; ctx.fillStyle='rgba(210,235,255,0.72)';ctx.fillRect(lx,ly-4,8,6); legendText(lx+12,'rgba(210,235,255,0.85)','Snow');
+  lx+=46; ctx.strokeStyle='rgba(255,209,102,0.55)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(lx+10,ly);ctx.stroke();ctx.setLineDash([]);
+  legendText(lx+13,'rgba(255,209,102,0.7)','Fcst');
+
+  // ── Auto-scroll to show target / today ──
+  var scrollEl = canvas.parentElement;
+  if(scrollEl && scrollEl.id === 'ripeness-scroll') {
+    var focusIdx = tgtIdx >= 0 ? tgtIdx : (todayIdx >= 0 ? todayIdx : N - 1);
+    var focusX = xPos(focusIdx);
+    var viewW = scrollEl.offsetWidth || 320;
+    scrollEl.scrollLeft = Math.max(0, focusX - viewW * 0.65);
+  }
 }
 
 // ── CORN MODEL ────────────────────────────────────────────────────────────
@@ -1989,9 +2028,10 @@ function renderResult(pk,asp,w,aspComps,f,month){
   if(weatherData && weatherData.ripenessTrajectory && weatherData.ripenessTrajectory.length) {
     h+='<div class="ripeness-chart-wrap">';
     h+='<h3>📈 Snowpack Condition Trajectory — Season Start → Target +15 days</h3>';
-    h+='<canvas id="ripeness-canvas" height="200" style="height:200px"></canvas>';
-    h+='<div style="font-size:.64rem;color:#456a82;margin-top:.3rem">🟠 Surface freeze quality · 🔵 Column cold reserve · Both high = strong overnight freeze &amp; longer window · Dashed = forecast · Red dashed = marginal zone</div>';
+    h+='<div id="ripeness-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px">';
+    h+='<canvas id="ripeness-canvas" style="display:block;height:240px"></canvas>';
     h+='</div>';
+   h+='<div style="font-size:.64rem;color:#456a82;margin-top:.3rem">🟠 Surface freeze · 🔵 Col. cold reserve · 🌡️ Hi/Lo °F · ❄ Snow bars · Dashed = forecast · Pan ← to see history</div>';
   }
   h+='</div>';
 

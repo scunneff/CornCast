@@ -277,7 +277,19 @@ Canvas height increased from 200px to 240px to accommodate the snow bar strip wi
 Legend updated: Surface freeze · Col. cold · Hi°F · Lo°F · Snow · Fcst. Caption updated to note panning.
 
 ---
+
+
+**v22b — Pre-season (Jan/Feb) chart extension:**
+`ripenessTrajectory` now prepended with `preCCCDays` (Jan 1 → Feb 28). Each pre-season 
+point carries `isPreSeason:true`, `surfaceRipeness:null`, and a running CCC value computed 
+incrementally. `marchFirstIdx` added to the `wd` return object so the chart knows where 
+pre-season ends. Chart changes: pre-season region shaded with a dim overlay and a rotated 
+"Pre-season" label; vertical dashed "Mar 1" marker at the boundary; SFQ (orange) line 
+starts at marchFirstIdx, skipping nulls; CCR (blue), Tmax, Tmin, and snowfall bars render 
+across the full Jan 1 → target range. Auto-scroll focus unchanged — still centers on target/today.
 ## Architecture Decisions (Standing)
+
+-----
 
 | Decision | Rationale |
 |---|---|

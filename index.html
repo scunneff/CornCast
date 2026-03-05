@@ -142,7 +142,7 @@ input[type=date]:focus{border-color:var(--teal)}
 /* Ripeness chart */
 .ripeness-chart-wrap{margin-top:.75rem;padding-top:.65rem;border-top:1px solid rgba(36,59,85,.4)}
 .ripeness-chart-wrap h3{font-size:.7rem;font-weight:600;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem}
-#ripeness-canvas{display:block;width:100%;border-radius:8px;background:rgba(0,0,0,0.2)}
+#ripeness-canvas{display:block;min-width:100%;border-radius:8px;background:rgba(0,0,0,0.2)}
 </style>
 </head>
 <body>
@@ -1099,8 +1099,31 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
     }
   }
 
-  // Compute ripenessTrajectory for every day in allDays
+   // Compute ripenessTrajectory for every day in allDays
   var ripenessTrajectory = [];
+
+  // ── PRE-SEASON (Jan/Feb): CCC + temp/snow only, no surface metrics ──────
+  // Run CCC forward incrementally through preCCCDays so each day reflects
+  // the actual running cold reserve at that point in the winter.
+  for(var jp=0; jp<preCCCDays.length; jp++) {
+    var dp = preCCCDays[jp];
+    var cccP = archiveFailed
+      ? 0.95
+      : computeColumnColdContent(preCCCDays.slice(0, jp), swePct, new Date(dp.date+'T12:00:00').getMonth()+1);
+    ripenessTrajectory.push({
+      date: dp.date,
+      surfaceRipeness: null,   // pre-season: no freeze-thaw cycle yet
+      columnColdContent: cccP,
+      effectiveIsoPrb: null,
+      isForecast: false,
+      isPreSeason: true,
+      tmin: dp.tmin, tmax: dp.tmax, snowfall: dp.snowfall||0
+    });
+  }
+
+  var marchFirstIdx = ripenessTrajectory.length; // index where Mar 1 begins
+
+  // ── SEASON (Mar 1 onward): full two-layer trajectory ─────────────────────
   for(var j=0; j<allDays.length; j++) {
     var d = allDays[j];
     var dm = new Date(d.date + 'T12:00:00').getMonth() + 1;
@@ -1116,16 +1139,24 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
       ccc = SB2[dm] || 0.35;
       eip = sr;
     }
-    ripenessTrajectory.push({date:d.date, surfaceRipeness:sr, columnColdContent:ccc, effectiveIsoPrb:eip, isForecast:sortedEntries[j].isForecast, tmin:d.tmin, tmax:d.tmax, snowfall:d.snowfall||0});
+    ripenessTrajectory.push({
+      date: d.date,
+      surfaceRipeness: sr,
+      columnColdContent: ccc,
+      effectiveIsoPrb: eip,
+      isForecast: sortedEntries[j].isForecast,
+      isPreSeason: false,
+      tmin: d.tmin, tmax: d.tmax, snowfall: d.snowfall||0
+    });
   }
 
   cb({
     surfaceRipeness: surfaceRipeness,
     columnColdContent: columnColdContent,
     effectiveIsoPrb: effIsoPrb,
-    packRipeness: effIsoPrb, // backward compat
+    packRipeness: effIsoPrb,
     days: allDays,
-    histDays: histDays14,   // backward compat
+    histDays: histDays14,
     histDays14: histDays14,
     seasonDays: seasonDaysForCCC,
     forecastDays: forecastDays,
@@ -1138,6 +1169,7 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
     snowDepthEst: snowDepthEst,
     snowSource: snowSource,
     ripenessTrajectory: ripenessTrajectory,
+    marchFirstIdx: marchFirstIdx,          // ← new: chart uses this for the Mar 1 marker
     archiveFailed: archiveFailed,
     forecastFailed: forecastFailed,
     todayStr: todayStr
@@ -1376,8 +1408,11 @@ function drawRipenessChart(canvasId, wd, month) {
   var N = traj.length;
   var todayStr = wd.todayStr;
   var targetDate = wd.targetDate;
+  var marchFirstIdx = wd.marchFirstIdx || 0;
 
-  var PX_PER_DAY = 7;
+  var containerW = (canvas.parentElement && canvas.parentElement.offsetWidth) || 320;
+  var minChartPx = containerW - PAD.left - PAD.right;
+  var PX_PER_DAY = Math.min(16, Math.max(7, Math.floor(minChartPx / Math.max(N, 1))));
   var PAD = {top:28, right:44, bottom:36, left:32};
   var cW = N * PX_PER_DAY;
   var H = 240;
@@ -1431,7 +1466,34 @@ function drawRipenessChart(canvasId, wd, month) {
     ctx.textAlign = 'left';
     ctx.fillText(Math.round(r*100)+'%', PAD.left + cW + 4, y + 3);
   });
-
+  
+// ── Pre-season shading (Jan/Feb) ──
+  if(marchFirstIdx > 0) {
+    var psX0 = PAD.left;
+    var psX1 = xPos(marchFirstIdx - 1) + PX_PER_DAY / 2;
+    ctx.fillStyle = 'rgba(30,50,80,0.35)';
+    ctx.fillRect(psX0, PAD.top, psX1 - psX0, dataBot - PAD.top);
+    // "Pre-season" label
+    ctx.fillStyle = 'rgba(120,160,190,0.45)';
+    ctx.font = '8px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.save();
+    ctx.translate(psX0 + (psX1 - psX0) / 2, PAD.top + (dataBot - PAD.top) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Pre-season', 0, 0);
+    ctx.restore();
+    // Mar 1 marker
+    var mar1X = xPos(marchFirstIdx);
+    ctx.strokeStyle = 'rgba(180,220,255,0.40)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(mar1X, PAD.top); ctx.lineTo(mar1X, PAD.top+cH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(180,220,255,0.55)';
+    ctx.font = 'bold 8px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Mar 1', mar1X, PAD.top + (dataBot - PAD.top) / 2 + 4);
+  }
   // ── Left Y axis: temperature reference lines ──
   [0, 32, 50].forEach(function(t) {
     var y = yT(t);
@@ -1544,10 +1606,16 @@ function drawRipenessChart(canvasId, wd, month) {
   drawLine(ccrS.solid,  'rgba(93,184,240,0.80)', 1.8, false);
   drawLine(ccrS.dashed, 'rgba(93,184,240,0.42)', 1.8, true);
 
-  // ── Surface Freeze Quality — orange ──
-  var sfqS = segLine(function(t){ return yH(sfq(t)); });
-  drawLine(sfqS.solid,  'rgba(255,144,64,0.95)', 2.2, false);
-  drawLine(sfqS.dashed, 'rgba(255,144,64,0.55)', 2.2, true);
+// Surface freeze quality — Mar 1 onward only (null in pre-season)
+  var sfqSolid=[], sfqDashed=[];
+  for(var m2=marchFirstIdx; m2<N; m2++){
+    if(traj[m2].surfaceRipeness === null) continue;
+    var pt2 = {x:xPos(m2), y:yH(sfq(traj[m2]))};
+    if(traj[m2].isForecast) sfqDashed.push(pt2); else sfqSolid.push(pt2);
+  }
+  if(sfqSolid.length && sfqDashed.length) sfqDashed.unshift(sfqSolid[sfqSolid.length-1]);
+  drawLine(sfqSolid,  'rgba(255,144,64,0.95)', 2.2, false);
+  drawLine(sfqDashed, 'rgba(255,144,64,0.55)', 2.2, true);
 
   // ── Tmax — warm red/orange thin line ──
   var tmaxS = segLine(function(t){ return yT(t.tmax != null ? t.tmax : TEMP_MIN); });

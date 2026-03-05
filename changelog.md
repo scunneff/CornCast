@@ -288,6 +288,11 @@ pre-season ends. Chart changes: pre-season region shaded with a dim overlay and 
 starts at marchFirstIdx, skipping nulls; CCR (blue), Tmax, Tmin, and snowfall bars render 
 across the full Jan 1 → target range. Auto-scroll focus unchanged — still centers on target/today.
 ## Architecture Decisions (Standing)
+Bug fix — CCC trajectory seam at Mar 1: Season trajectory loop was passing only 
+allDays.slice(0,j) into computeColumnColdContent, losing all pre-season history at 
+the Mar 1 boundary. CCC reset to SEASONAL_BASELINE[3]=0.85 on Mar 1 regardless of 
+Jan/Feb history, creating a visible step-discontinuity. Fixed: sDays now 
+preCCCDays.concat(allDays.slice(0,j)), matching the logic used for the final target CCC.
 
 -----
 

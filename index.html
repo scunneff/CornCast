@@ -1585,7 +1585,21 @@ function drawRipenessChart(canvasId, wd, month) {
       if(traj[k].isForecast) dashed.push(pt); else solid.push(pt);
     }
     if(solid.length && dashed.length) dashed.unshift(solid[solid.length-1]);
-    return {solid:solid, dashed:dashed};
+  return {solid:solid, dashed:dashed};
+  }
+
+  // ── Uncertainty band edges — upper and lower dashed borders ──
+  if(todayIdx >= 0) {
+    var uncUpperPts = [];
+    var uncLowerPts = [];
+    for(var fi3=todayIdx; fi3<N; fi3++){
+      var unc3 = Math.min(0.30, (fi3 - todayIdx) * 0.015);
+      var cv3 = comb(traj[fi3]);
+      uncUpperPts.push({x: xPos(fi3), y: yH(Math.min(1, cv3 + unc3))});
+      uncLowerPts.push({x: xPos(fi3), y: yH(Math.max(0, cv3 - unc3))});
+    }
+    drawLine(uncUpperPts, 'rgba(255,144,64,0.25)', 1, true);
+    drawLine(uncLowerPts, 'rgba(255,144,64,0.25)', 1, true);
   }
 
   // ── Column Cold Reserve — blue, with fill ──

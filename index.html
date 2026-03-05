@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>CornCast 🌽 v20</title>
+<title>CornCast 🌽 v21</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <script>
 (function(){
@@ -845,7 +845,6 @@ function computeSurfaceRipeness(days14, month) {
 function computeColumnColdContent(seasonDays, swePct, month) {
   var SEASONAL_BASELINE = {3:0.85, 4:0.60, 5:0.35, 6:0.15};
   // If seasonDays begins in Jan or Feb, start from near-peak cold reserve (deep winter).
-  // The existing ageFactor weighting naturally discounts older days — no other changes needed.
   // If only Mar+ data is available (archive fallback), use the month-specific baseline.
   var hasPreSeason = seasonDays.length > 0 &&
     new Date(seasonDays[0].date + 'T12:00:00').getMonth() < 2; // month index 0=Jan, 1=Feb

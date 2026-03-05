@@ -262,7 +262,21 @@ Bug 2 fixed — cold rebuild running in pre-season: The colCold term (tmax < 25�
 Net physics effect: For a warm pre-season (multiple days above 40°F in Jan/Feb), Jan 1 model now correctly produces slightly lower CCC than the Mar 1 baseline. For a normal or cold pre-season, the difference is minimal. The correction compounds meaningfully for April and May targets where pre-season history has more weight.
 
 ----
+### Session [N] — v22 (Chart: Panning + Temp Lines + Snowfall Bars)
 
+Snowpack Condition Trajectory chart enhanced in three ways:
+
+**Pannable canvas:** Canvas now renders at full season width using 7px/day fixed density (~950px for a full season). Wrapped in an `overflow-x:auto;-webkit-overflow-scrolling:touch` scroll container. Chart auto-scrolls on render so target/today is visible at 65% from the left edge, leaving earlier history accessible by panning left.
+
+**Tmax/Tmin temperature lines:** Each trajectory point now carries `tmin`, `tmax`, and `snowfall` fields (added to `ripenessTrajectory.push`). Tmax rendered as warm red-orange (rgba 255,100,55), Tmin as cool blue-gray (rgba 140,205,245), both at 1.4px width and ~60% opacity to stay visually subordinate to the pack health lines. Solid for archive, dashed for forecast — same convention as existing lines. Mapped to a fixed left Y axis (-10°F–65°F) with reference lines at 0°F, 32°F (bold, labeled), and 50°F. Left padding increased from 14 to 32px to accommodate °F labels.
+
+**Snowfall bars:** Per-day snowfall rendered as vertical bars in the bottom 16px strip of the chart area. Archive bars at 75% opacity, forecast at 40%. Bars ≥4" get a ❄ glyph above them. Scaled so 10" = full strip height. Visually separates snowfall events from the continuous pack health and temperature lines above.
+
+Canvas height increased from 200px to 240px to accommodate the snow bar strip without crowding the data area.
+
+Legend updated: Surface freeze · Col. cold · Hi°F · Lo°F · Snow · Fcst. Caption updated to note panning.
+
+---
 ## Architecture Decisions (Standing)
 
 | Decision | Rationale |

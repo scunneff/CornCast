@@ -1128,7 +1128,7 @@ function processWeatherData(pk, targetDate, archiveJson, forecastJson, swePct, t
     var d = allDays[j];
     var dm = new Date(d.date + 'T12:00:00').getMonth() + 1;
     var h14 = allDays.slice(Math.max(0, j-14), j);
-    var sDays = allDays.slice(0, j);
+    var sDays = preCCCDays.concat(allDays.slice(0, j));
     var sr = computeSurfaceRipeness(h14, dm);
     var ccc, eip;
     if(!archiveFailed) {

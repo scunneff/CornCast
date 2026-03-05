@@ -1410,10 +1410,10 @@ function drawRipenessChart(canvasId, wd, month) {
   var targetDate = wd.targetDate;
   var marchFirstIdx = wd.marchFirstIdx || 0;
 
+  var PAD = {top:28, right:44, bottom:36, left:32};
   var containerW = (canvas.parentElement && canvas.parentElement.offsetWidth) || 320;
   var minChartPx = containerW - PAD.left - PAD.right;
   var PX_PER_DAY = Math.min(16, Math.max(7, Math.floor(minChartPx / Math.max(N, 1))));
-  var PAD = {top:28, right:44, bottom:36, left:32};
   var cW = N * PX_PER_DAY;
   var H = 240;
   var W = PAD.left + PAD.right + cW;

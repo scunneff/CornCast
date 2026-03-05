@@ -858,8 +858,10 @@ function computeColumnColdContent(seasonDays, swePct, month) {
     ccc -= colHeat;
     if (d.tmin > 32) ccc -= 0.015 * ageFactor; // sustained warm nights penetrate column
     var colCold = Math.max(0, 25 - d.tmax) * 0.003 * ageFactor; // cold days rebuild reserve
-    ccc += colCold;
-    if (d.snowfall > 1.0) ccc += 0.04 * af; // fresh snow insulates, adds cold to column top
+    if (d.date >= d.date.slice(0,4) + '-03-01') {
+      ccc += colCold;
+      if (d.snowfall > 1.0) ccc += 0.04 * ageFactor;
+    }// fresh snow insulates, adds cold to column top
   });
   // SWE boost: higher SWE = more column mass = more cold content reserve
   if (swePct !== null && swePct !== undefined) {

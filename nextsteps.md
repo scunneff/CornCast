@@ -13,3 +13,5 @@
 7. Update the graphs 
 
 8. is there a way to build a graph of snow quality incorporating SWe?
+
+9. how to account for the temps and therefore snow on the ski line rather thsn at thr peak elevations of each mointain. looking into the routes in the books you have read would be helpful. 

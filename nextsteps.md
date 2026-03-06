@@ -7,7 +7,5 @@
 4. Using terrain shading from shae map
    
 5. Incorproating DEM data in order to better evaluate terrain conditions.
-   
-6. Looking back to January 1 for the begining of column coldness - we have had a very warm year and not counting it may affect the results.
-   
+  
 7. Expanding this to an area larger than the front range 

@@ -140,7 +140,7 @@ input[type=date]:focus{border-color:var(--teal)}
 .pr-bar-wrap{flex:1;background:var(--navy3);border-radius:4px;height:7px;overflow:hidden;margin:0 .3rem;display:inline-block;min-width:60px;vertical-align:middle}
 .pr-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,#1a5c9c,#ff6040)}
 /* Ripeness chart */
-.ripeness-chart-wrap{margin-top:.75rem;padding-top:.65rem;border-top:1px solid rgba(36,59,85,.4)}
+.ripeness-chart-wrap{margin-top:.75rem;padding-top:.65rem;border-top:1px solid rgba(36,59,85,.4);max-width:960px}
 .ripeness-chart-wrap h3{font-size:.7rem;font-weight:600;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem}
 #ripeness-canvas{display:block;min-width:100%;border-radius:8px;background:rgba(0,0,0,0.2)}
 </style>
@@ -1410,10 +1410,10 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
   var targetDate = wd.targetDate;
   var marchFirstIdx = wd.marchFirstIdx || 0;
 
-  var PAD = {top:28, right:44, bottom:36, left:32};
+  var PAD = {top:20, right:44, bottom:36, left:32};
   var containerW = (canvas.parentElement && canvas.parentElement.offsetWidth) || 320;
   var minChartPx = containerW - PAD.left - PAD.right;
-  var PX_PER_DAY = Math.min(16, Math.max(7, Math.floor(minChartPx / Math.max(N, 1))));
+  var PX_PER_DAY = Math.min(22, Math.max(8, Math.floor(minChartPx / Math.max(N, 1))));
   var cW = N * PX_PER_DAY;
   var H = 240;
   var W = PAD.left + PAD.right + cW;
@@ -1496,85 +1496,54 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     ctx.fillText('Mar 1', mar1X, PAD.top + (dataBot - PAD.top) / 2 + 4);
   }
 
-    // ── Optimal zone highlight (75–100%) ──
-  ctx.fillStyle = 'rgba(46,213,115,0.045)';
-  ctx.fillRect(PAD.left, yH(1.0), cW, yH(0.75) - yH(1.0));
-  ctx.fillStyle = 'rgba(46,213,115,0.30)';
-  ctx.font = '7px -apple-system,sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText('optimal', PAD.left + cW - 2, yH(0.88) + 3);
   
   // ── Left Y axis: temperature reference lines ──
-  [0, 32, 50].forEach(function(t) {
+// ── Left Y axis: temperature reference lines ──
+  // 32°F = refreeze line (blue), 40°F = pack degradation threshold (amber)
+  [0, 32, 40].forEach(function(t) {
     var y = yT(t);
     if(y < PAD.top || y > dataBot) return;
     var is32 = (t === 32);
-    ctx.strokeStyle = is32 ? 'rgba(100,180,255,0.35)' : 'rgba(100,140,160,0.18)';
-    ctx.lineWidth = is32 ? 1 : 0.5;
-    ctx.setLineDash(is32 ? [2,3] : [1,4]);
+    var is40 = (t === 40);
+    ctx.strokeStyle = is32 ? 'rgba(100,180,255,0.35)'
+                    : is40 ? 'rgba(255,180,60,0.35)'
+                    :        'rgba(100,140,160,0.15)';
+    ctx.lineWidth = (is32 || is40) ? 1 : 0.5;
+    ctx.setLineDash((is32 || is40) ? [2,3] : [1,4]);
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = is32 ? 'rgba(120,190,255,0.75)' : 'rgba(120,160,180,0.45)';
+    ctx.fillStyle = is32 ? 'rgba(120,190,255,0.80)'
+                  : is40 ? 'rgba(255,180,60,0.85)'
+                  :        'rgba(120,160,180,0.40)';
     ctx.textAlign = 'right';
-    ctx.font = is32 ? 'bold 8px -apple-system,sans-serif' : '8px -apple-system,sans-serif';
-    ctx.fillText(t+'°', PAD.left - 3, y + 3);
+    ctx.font = (is32 || is40) ? 'bold 8px -apple-system,sans-serif' : '8px -apple-system,sans-serif';
+    ctx.fillText(t + '°', PAD.left - 3, y + 3);
   });
 
-  // ── 50% marginal zone line ──
-  ctx.strokeStyle = 'rgba(255,71,87,0.30)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4,3]);
-  ctx.beginPath(); ctx.moveTo(PAD.left, yH(0.5)); ctx.lineTo(PAD.left + cW, yH(0.5)); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(255,71,87,0.45)';
-  ctx.textAlign = 'right';
-  ctx.font = '8px -apple-system,sans-serif';
-  ctx.fillText('marginal', PAD.left + cW - 2, yH(0.5) - 3);
-
-    // ── Historical average CCC reference for current month ──
-  var SEASONAL_BASELINE = {3:0.85, 4:0.60, 5:0.35, 6:0.15};
-  var histAvg = SEASONAL_BASELINE[month] || 0.50;
-  var histY = yH(histAvg);
-  if(histY >= PAD.top && histY <= dataBot) {
-    ctx.strokeStyle = 'rgba(93,184,240,0.20)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6,4]);
-    ctx.beginPath();
-    ctx.moveTo(PAD.left, histY);
-    ctx.lineTo(PAD.left + cW, histY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(93,184,240,0.30)';
-    ctx.font = '7px -apple-system,sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText('avg', PAD.left + cW - 2, histY - 2);
-  }
-
-  // ── Snowfall bars (bottom strip) ──
-  var MAX_SNOW_DISP = 10; // 10" = full SNOW_H
+// ── Snowfall glyphs — ❄ at midpoint of temperature band ──
   for(var si=0; si<N; si++) {
     var sf = traj[si].snowfall || 0;
-    if(sf < 0.3) continue;
-    var bh = Math.min(1, sf / MAX_SNOW_DISP) * (SNOW_H - 2);
-    var bx = PAD.left + si * PX_PER_DAY;
-    var by = snowBot - bh;
-    ctx.fillStyle = traj[si].isForecast ? 'rgba(180,220,255,0.40)' : 'rgba(210,235,255,0.75)';
-    ctx.fillRect(bx + 0.5, by, PX_PER_DAY - 1, bh);
-    if(sf >= 4) {
-      ctx.fillStyle = 'rgba(210,235,255,0.9)';
+    if(sf < 0.5) continue;
+    var hiT = traj[si].tmax, loT = traj[si].tmin;
+    // Midpoint of Hi/Lo band; fall back to lower chart area if no temp data
+    var bandMidY = (hiT !== null && loT !== null)
+      ? (yT(hiT) + yT(loT)) / 2
+      : dataBot - 14;
+    var sfAlpha = traj[si].isForecast ? 0.45 : 0.85;
+    var fontSize = sf >= 6 ? 11 : sf >= 3 ? 9 : 7;
+    var cx = xPos(si);
+    ctx.globalAlpha = sfAlpha;
+    ctx.font = fontSize + 'px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(210,235,255,1.0)';
+    ctx.fillText('❄', cx, bandMidY + fontSize * 0.35);
+    // Depth label for significant events
+    if(sf >= 3) {
       ctx.font = 'bold 7px -apple-system,sans-serif';
-      ctx.textAlign = 'center';
-      var snowLabel = sf >= 10
-        ? Math.round(sf) + '"'
-        : sf.toFixed(sf < 1 ? 1 : 0) + '"';
-      ctx.fillText(snowLabel, bx + PX_PER_DAY/2, by - 2);
-    } else if(sf >= 2) {
-      // Smaller but notable — just the glyph, smaller
-      ctx.fillStyle = 'rgba(210,235,255,0.7)';
-      ctx.font = '6px -apple-system,sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('❄', bx + PX_PER_DAY/2, by - 1);
+      ctx.fillStyle = 'rgba(210,235,255,0.85)';
+      ctx.fillText((sf >= 10 ? Math.round(sf) : sf.toFixed(0)) + '"', cx, bandMidY + fontSize * 0.35 + 9);
     }
+    ctx.globalAlpha = 1.0;
   }
 
   // ── Forecast uncertainty shading ──
@@ -1640,7 +1609,7 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     drawLine(uncLowerPts, 'rgba(255,144,64,0.25)', 1, true);
   }
 
-  // ── Column Cold Reserve — blue, with fill ──
+  // ── Column Cold Reserve — blue filled area, stronger gradient ──
   var ccrS = segLine(function(t){ return yH(ccr(t)); });
   if(ccrS.solid.length > 1) {
     ctx.save(); ctx.beginPath();
@@ -1651,90 +1620,76 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     }
     ctx.lineTo(ccrS.solid[ccrS.solid.length-1].x, dataBot);
     ctx.lineTo(ccrS.solid[0].x, dataBot); ctx.closePath();
-    var cg=ctx.createLinearGradient(0,PAD.top,0,dataBot);
-    cg.addColorStop(0,'rgba(93,184,240,0.14)'); cg.addColorStop(1,'rgba(93,184,240,0.02)');
-    ctx.fillStyle=cg; ctx.fill(); ctx.restore();
+    var cg = ctx.createLinearGradient(0, PAD.top, 0, dataBot);
+    cg.addColorStop(0,   'rgba(56,189,248,0.32)');
+    cg.addColorStop(0.5, 'rgba(56,189,248,0.12)');
+    cg.addColorStop(1,   'rgba(56,189,248,0.02)');
+    ctx.fillStyle = cg; ctx.fill(); ctx.restore();
   }
-  drawLine(ccrS.solid,  'rgba(93,184,240,0.80)', 1.8, false);
-  drawLine(ccrS.dashed, 'rgba(93,184,240,0.42)', 1.8, true);
+  drawLine(ccrS.solid,  'rgba(56,189,248,0.90)', 1.8, false);
+  drawLine(ccrS.dashed, 'rgba(56,189,248,0.45)', 1.8, true);
 
-// Surface freeze quality — Mar 1 onward only (null in pre-season)
-  var sfqSolid=[], sfqDashed=[];
-  for(var m2=marchFirstIdx; m2<N; m2++){
-    if(traj[m2].surfaceRipeness === null) continue;
-    var pt2 = {x:xPos(m2), y:yH(sfq(traj[m2]))};
-    if(traj[m2].isForecast) sfqDashed.push(pt2); else sfqSolid.push(pt2);
-  }
-  if(sfqSolid.length && sfqDashed.length) sfqDashed.unshift(sfqSolid[sfqSolid.length-1]);
-  drawLine(sfqSolid,  'rgba(255,144,64,0.95)', 2.2, false);
-  drawLine(sfqDashed, 'rgba(255,144,64,0.55)', 2.2, true);
-
-  // ── Tmax — warm red/orange thin line ──
-  var tmaxS = segLine(function(t){ return yT(t.tmax != null ? t.tmax : TEMP_MIN); });
-  // filter out nulls
-  tmaxS.solid  = tmaxS.solid.filter(function(_,i){ return traj[i] && traj[i].tmax != null; });
-  tmaxS.dashed = tmaxS.dashed.filter(function(_,i){ return traj[i] && traj[i].tmax != null; });
-  drawLine(tmaxS.solid,  'rgba(255,100,55,0.58)', 1.4, false);
-  drawLine(tmaxS.dashed, 'rgba(255,100,55,0.32)', 1.4, true);
-
-  // ── Tmin — cool blue-gray thin line ──
-  var tminS = segLine(function(t){ return yT(t.tmin != null ? t.tmin : TEMP_MIN); });
-  tminS.solid  = tminS.solid.filter(function(_,i){ return traj[i] && traj[i].tmin != null; });
-  tminS.dashed = tminS.dashed.filter(function(_,i){ return traj[i] && traj[i].tmin != null; });
-  drawLine(tminS.solid,  'rgba(140,205,245,0.60)', 1.4, false);
-  drawLine(tminS.dashed, 'rgba(140,205,245,0.34)', 1.4, true);
-  // ── Freeze threshold crossing dots on Tmin line ──
-  for(var fc=1; fc<N; fc++) {
-    var prevMin = traj[fc-1].tmin;
-    var currMin = traj[fc].tmin;
-    if(prevMin === null || currMin === null) continue;
-    var crossedBelow = prevMin >= 32 && currMin < 32;  // good: started freezing
-    var crossedAbove = prevMin < 32  && currMin >= 32; // bad: stopped freezing
-    if(!crossedBelow && !crossedAbove) continue;
-
-    var dotX = xPos(fc);
-    var dotY = yT(32); // on the 32°F reference line
-    var dotColor = crossedBelow ? '#00d4aa' : '#ff4757';
-    var dotLabel = crossedBelow ? '❄' : '💧';
-
+// ── Surface freeze quality — gold dots, Mar 1 onward ──
+  for(var sd=marchFirstIdx; sd<N; sd++) {
+    if(traj[sd].surfaceRipeness === null) continue;
+    var sfqVal = sfq(traj[sd]);
+    var sfqAlpha = traj[sd].isForecast ? 0.45 : 0.90;
     ctx.beginPath();
-    ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = dotColor;
+    ctx.arc(xPos(sd), yH(sfqVal), 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(251,191,36,' + sfqAlpha + ')';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+  }
 
-    // Tiny emoji label above dot
-    ctx.font = '8px -apple-system,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = dotColor;
-    ctx.fillText(dotLabel, dotX, dotY - 6);
+  // ── Temperature band (Hi to Lo) — rose/peach fill, Hi edge only ──
+  // Drawn BEFORE CCR so blue cold reserve overlays it.
+  ctx.save();
+
+  // Archive fill (solid days)
+  ctx.beginPath();
+  var bandStarted = false;
+  for(var tb=0; tb<N; tb++) {
+    if(traj[tb].isForecast || traj[tb].tmax === null) continue;
+    if(!bandStarted) { ctx.moveTo(xPos(tb), yT(traj[tb].tmax)); bandStarted=true; }
+    else ctx.lineTo(xPos(tb), yT(traj[tb].tmax));
   }
-  // ── "Pack going marginal" crossing annotation ──
-  var marginalCrossIdx = -1;
-  for(var mc=marchFirstIdx+1; mc<N; mc++) {
-    if(traj[mc-1].columnColdContent >= 0.50 && traj[mc].columnColdContent < 0.50) {
-      if(mc >= todayIdx) {
-        marginalCrossIdx = mc;
-        break;
-      }
-    }
+  for(var tb2=N-1; tb2>=0; tb2--) {
+    if(traj[tb2].isForecast || traj[tb2].tmin === null) continue;
+    ctx.lineTo(xPos(tb2), yT(traj[tb2].tmin));
   }
-  if(marginalCrossIdx >= 0) {
-    var mcX = xPos(marginalCrossIdx);
-    ctx.strokeStyle = 'rgba(255,71,87,0.50)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(mcX, yH(0.50) - 6);
-    ctx.lineTo(mcX, yH(0.50) + 6);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,71,87,0.65)';
-    ctx.font = 'bold 7px -apple-system,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('⚠ pack→marginal', mcX, yH(0.50) - 9);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,155,120,0.13)';
+  ctx.fill();
+
+  // Forecast fill (lighter)
+  ctx.beginPath();
+  var fBandStarted = false;
+  for(var tf=0; tf<N; tf++) {
+    if(!traj[tf].isForecast || traj[tf].tmax === null) continue;
+    if(!fBandStarted) { ctx.moveTo(xPos(tf), yT(traj[tf].tmax)); fBandStarted=true; }
+    else ctx.lineTo(xPos(tf), yT(traj[tf].tmax));
   }
+  for(var tf2=N-1; tf2>=0; tf2--) {
+    if(!traj[tf2].isForecast || traj[tf2].tmin === null) continue;
+    ctx.lineTo(xPos(tf2), yT(traj[tf2].tmin));
+  }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,155,120,0.06)';
+  ctx.fill();
+
+  // Hi edge line only (Lo edge is defined by the fill boundary)
+  ctx.beginPath();
+  var hiDrawing = false;
+  for(var th=0; th<N; th++) {
+    if(traj[th].tmax === null) { hiDrawing = false; continue; }
+    ctx.setLineDash(traj[th].isForecast ? [3,3] : []);
+    ctx.strokeStyle = traj[th].isForecast ? 'rgba(255,120,80,0.20)' : 'rgba(255,120,80,0.42)';
+    if(!hiDrawing) { ctx.moveTo(xPos(th), yT(traj[th].tmax)); hiDrawing = true; }
+    else ctx.lineTo(xPos(th), yT(traj[th].tmax));
+  }
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
 
   // ── Today vertical line ──
   if(todayIdx >= 0) {
@@ -1839,19 +1794,6 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     lastLabelX=labelX;
   }
 
-  // ── Legend ──
-  var lx=PAD.left+2, ly=PAD.top-8;
-  function legendLine(x,col,w){ ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x,ly);ctx.lineTo(x+10,ly);ctx.stroke(); }
-  function legendText(x,col,txt){ ctx.fillStyle=col;ctx.textAlign='left';ctx.font='8px -apple-system,sans-serif';ctx.fillText(txt,x,ly+3); }
-  legendLine(lx,'#ff9040',2); ctx.beginPath();ctx.arc(lx+5,ly,2.5,0,Math.PI*2);ctx.fillStyle='#ff9040';ctx.fill();
-  legendText(lx+13,'rgba(255,144,64,0.85)','Sfc freeze');
-  lx+=80; legendLine(lx,'rgba(93,184,240,0.75)',2); legendText(lx+13,'rgba(93,184,240,0.85)','Col.cold');
-  lx+=60; legendLine(lx,'rgba(255,100,55,0.55)',1.5); legendText(lx+13,'rgba(255,120,70,0.85)','Hi°F');
-  lx+=40; legendLine(lx,'rgba(140,205,245,0.55)',1.5); legendText(lx+13,'rgba(140,205,245,0.85)','Lo°F');
-  lx+=40; ctx.fillStyle='rgba(210,235,255,0.72)';ctx.fillRect(lx,ly-4,8,6); legendText(lx+12,'rgba(210,235,255,0.85)','Snow');
-  lx+=46; ctx.strokeStyle='rgba(255,209,102,0.55)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
-  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(lx+10,ly);ctx.stroke();ctx.setLineDash([]);
-  legendText(lx+13,'rgba(255,209,102,0.7)','Fcst');
 
   // ── Auto-scroll to show target / today ──
   var scrollEl = canvas.parentElement;
@@ -1862,50 +1804,51 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     scrollEl.scrollLeft = Math.max(0, focusX - viewW * 0.65);
   }
 
-  // ── Tap tooltip ──
-  var ttEl = document.getElementById('ripeness-tooltip');
-  if(ttEl) {
+  // ── Tap → info panel (below chart, always readable) ──
+  var infoEl = document.getElementById('ripeness-info-panel');
+  if(infoEl) {
     canvas.onclick = function(e) {
       var rect = canvas.getBoundingClientRect();
-      var scaleX = canvas.width / (window.devicePixelRatio || 1) / rect.width;
+      var dpr = window.devicePixelRatio || 1;
+      var scaleX = (canvas.width / dpr) / rect.width;
       var clickX = (e.clientX - rect.left) * scaleX;
       var nearestIdx = Math.round((clickX - PAD.left - PX_PER_DAY/2) / PX_PER_DAY);
       nearestIdx = Math.max(0, Math.min(N-1, nearestIdx));
       var t = traj[nearestIdx];
       if(!t) return;
 
-      // Tap same day again = dismiss
-      if(ttEl.dataset.shown === t.date) {
-        ttEl.style.display = 'none';
-        ttEl.dataset.shown = '';
+      if(infoEl.dataset.shown === t.date) {
+        infoEl.innerHTML = '← tap any day to inspect';
+        infoEl.style.color = 'var(--muted)';
+        infoEl.dataset.shown = '';
         return;
       }
 
       var MNAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       var dt = new Date(t.date + 'T12:00:00');
       var dateStr = MNAMES[dt.getMonth()] + ' ' + dt.getDate();
-      var sfqPct = t.surfaceRipeness !== null ? Math.round((1 - t.surfaceRipeness)*100)+'%' : '—';
-      var ccrPct = t.columnColdContent !== null ? Math.round(t.columnColdContent*100)+'%' : '—';
-      var snowStr = (t.snowfall && t.snowfall >= 0.1) ? t.snowfall.toFixed(1)+'"' : 'none';
-      var hiStr = t.tmax !== null ? Math.round(t.tmax)+'°' : '—';
-      var loStr = t.tmin !== null ? Math.round(t.tmin)+'°' : '—';
-      var fcstTag = t.isForecast ? ' · forecast' : ' · archive';
+      var tag = t.isForecast ? 'forecast' : 'archive';
+      var sfqPct  = t.surfaceRipeness !== null ? Math.round((1-t.surfaceRipeness)*100)+'%' : '—';
+      var ccrPct  = t.columnColdContent !== null ? Math.round(t.columnColdContent*100)+'%' : '—';
+      var snowStr = (t.snowfall && t.snowfall >= 0.5) ? t.snowfall.toFixed(1)+'"' : '—';
+      var hiStr   = t.tmax !== null ? Math.round(t.tmax)+'°' : '—';
+      var loStr   = t.tmin !== null ? Math.round(t.tmin)+'°' : '—';
 
-      ttEl.innerHTML = '<strong>' + dateStr + '</strong>' + fcstTag
-        + ' &nbsp;|&nbsp; Hi ' + hiStr + ' Lo ' + loStr
-        + ' &nbsp;|&nbsp; ❄ ' + snowStr
-        + ' &nbsp;|&nbsp; Sfc ' + sfqPct + ' · Col ' + ccrPct;
-
-      // Position tooltip near the tapped column, clamped within visible scroll area
-      var scrollLeft = scrollEl ? scrollEl.scrollLeft : 0;
-      var dotX = xPos(nearestIdx) / (window.devicePixelRatio || 1);
-      var pct = Math.max(10, Math.min(90, ((dotX - scrollLeft) / (scrollEl.offsetWidth||320)) * 100));
-      ttEl.style.left = pct + '%';
-      ttEl.style.display = 'block';
-      ttEl.dataset.shown = t.date;
+      infoEl.style.color = 'var(--text)';
+      infoEl.dataset.shown = t.date;
+      infoEl.innerHTML =
+        '<strong>' + dateStr + '</strong>'
+        + ' <span style="color:var(--muted);font-size:.65rem">· ' + tag + '</span>'
+        + ' &nbsp;&nbsp;'
+        + '<span style="color:rgba(255,155,120,0.85)">Hi</span> <strong>' + hiStr + '</strong>'
+        + ' <span style="color:rgba(255,155,120,0.85)">Lo</span> <strong>' + loStr + '</strong>'
+        + ' &nbsp;&nbsp;'
+        + '<span style="color:#fbbf24">Sfc</span> <strong>' + sfqPct + '</strong>'
+        + ' &nbsp;'
+        + '<span style="color:rgba(56,189,248,0.9)">CCR</span> <strong>' + ccrPct + '</strong>'
+        + (snowStr !== '—' ? ' &nbsp;&nbsp;❄ <strong>' + snowStr + '</strong>' : '');
     };
   }
-}
 
 // ── CORN MODEL ────────────────────────────────────────────────────────────
 function cornWindow(pk,asp,f,month){
@@ -2301,11 +2244,16 @@ function renderResult(pk,asp,w,aspComps,f,month){
   if(weatherData && weatherData.ripenessTrajectory && weatherData.ripenessTrajectory.length) {
     h+='<div class="ripeness-chart-wrap">';
     h+='<h3>📈 Snowpack Condition Trajectory — Season Start → Target +15 days</h3>';
-    h+='<div id="ripeness-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;position:relative">';
+    h+='<div id="ripeness-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px">';
     h+='<canvas id="ripeness-canvas" style="display:block;height:240px"></canvas>';
-    h+='<div id="ripeness-tooltip" style="display:none;position:absolute;top:4px;left:50%;transform:translateX(-50%);background:rgba(13,27,42,0.95);border:1px solid rgba(0,212,170,0.4);border-radius:8px;padding:.35rem .6rem;font-size:.68rem;color:var(--text);pointer-events:none;white-space:nowrap;z-index:10"></div>';
     h+='</div>';
-    h+='<div style="font-size:.64rem;color:#456a82;margin-top:.3rem">🟠 Surface freeze · 🔵 Col. cold reserve · 🌡️ Hi/Lo °F · ❄ Snow bars · Dashed = forecast · Pan ← to see history</div>';
+    h+='<div id="ripeness-info-panel" style="margin-top:.5rem;padding:.4rem .65rem;border-radius:7px;background:rgba(13,27,42,0.55);border:1px solid rgba(56,189,248,0.12);font-size:.72rem;color:var(--muted);min-height:1.9rem;line-height:1.5">← tap any day to inspect</div>';
+    h+='<div style="font-size:.63rem;color:#456a82;margin-top:.35rem">';
+    h+='<span style="color:#fbbf24">●</span> Sfc freeze &nbsp;';
+    h+='<span style="color:rgba(56,189,248,0.85)">■</span> Cold reserve &nbsp;';
+    h+='<span style="color:rgba(255,155,120,0.7)">▬</span> Hi/Lo temp &nbsp;';
+    h+='<span style="opacity:.75">❄</span> Snow &nbsp;·&nbsp; Dashed = forecast &nbsp;·&nbsp; Pan ← history';
+    h+='</div>';
   }
   h+='</div>';
 

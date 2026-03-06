@@ -1858,9 +1858,10 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
         + '<span style="color:#fbbf24">Sfc</span> <strong>' + sfqPct + '</strong>'
         + ' &nbsp;'
         + '<span style="color:rgba(56,189,248,0.9)">CCR</span> <strong>' + ccrPct + '</strong>'
-        + (snowStr !== '—' ? ' &nbsp;&nbsp;❄ <strong>' + snowStr + '</strong>' : '');
+        + (snowStr !== '—' ? '&nbsp;&nbsp;❄ <strong>' + snowStr + '</strong>' : '');
     };
   }
+}
 
 // ── CORN MODEL ────────────────────────────────────────────────────────────
 function cornWindow(pk,asp,f,month){

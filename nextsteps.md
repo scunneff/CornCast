@@ -8,4 +8,8 @@
    
 5. Incorproating DEM data in order to better evaluate terrain conditions.
   
-7. Expanding this to an area larger than the front range 
+6. Expanding this to an area larger than the front range 
+
+7. Update the graphs 
+
+8. is there a way to build a graph of snow quality incorporating SWe?

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>CornCast 🌽 v23fixX</title>
+<title>CornCast 🌽 v23fiXXX</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <script>
 (function(){
@@ -1608,38 +1608,6 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     drawLine(uncUpperPts, 'rgba(255,144,64,0.25)', 1, true);
     drawLine(uncLowerPts, 'rgba(255,144,64,0.25)', 1, true);
   }
-
-  // ── Column Cold Reserve — blue filled area, stronger gradient ──
-  var ccrS = segLine(function(t){ return yH(ccr(t)); });
-  if(ccrS.solid.length > 1) {
-    ctx.save(); ctx.beginPath();
-    ctx.moveTo(ccrS.solid[0].x, ccrS.solid[0].y);
-    for(var cp=1;cp<ccrS.solid.length;cp++){
-      var cx0=ccrS.solid[cp-1].x,cy0=ccrS.solid[cp-1].y,cx1=ccrS.solid[cp].x,cy1=ccrS.solid[cp].y;
-      ctx.bezierCurveTo((cx0+cx1)/2,cy0,(cx0+cx1)/2,cy1,cx1,cy1);
-    }
-    ctx.lineTo(ccrS.solid[ccrS.solid.length-1].x, dataBot);
-    ctx.lineTo(ccrS.solid[0].x, dataBot); ctx.closePath();
-    var cg = ctx.createLinearGradient(0, PAD.top, 0, dataBot);
-    cg.addColorStop(0,   'rgba(56,189,248,0.32)');
-    cg.addColorStop(0.5, 'rgba(56,189,248,0.12)');
-    cg.addColorStop(1,   'rgba(56,189,248,0.02)');
-    ctx.fillStyle = cg; ctx.fill(); ctx.restore();
-  }
-  drawLine(ccrS.solid,  'rgba(56,189,248,0.90)', 1.8, false);
-  drawLine(ccrS.dashed, 'rgba(56,189,248,0.45)', 1.8, true);
-
-// ── Surface freeze quality — gold dots, Mar 1 onward ──
-  for(var sd=marchFirstIdx; sd<N; sd++) {
-    if(traj[sd].surfaceRipeness === null) continue;
-    var sfqVal = sfq(traj[sd]);
-    var sfqAlpha = traj[sd].isForecast ? 0.45 : 0.90;
-    ctx.beginPath();
-    ctx.arc(xPos(sd), yH(sfqVal), 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(251,191,36,' + sfqAlpha + ')';
-    ctx.fill();
-  }
-
   // ── Temperature band (Hi to Lo) — rose/peach fill, Hi edge only ──
   // Drawn BEFORE CCR so blue cold reserve overlays it.
   ctx.save();
@@ -1677,19 +1645,63 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
   ctx.fill();
 
   // Hi edge line only (Lo edge is defined by the fill boundary)
-  ctx.beginPath();
-  var hiDrawing = false;
-  for(var th=0; th<N; th++) {
-    if(traj[th].tmax === null) { hiDrawing = false; continue; }
-    ctx.setLineDash(traj[th].isForecast ? [3,3] : []);
-    ctx.strokeStyle = traj[th].isForecast ? 'rgba(255,120,80,0.20)' : 'rgba(255,120,80,0.42)';
-    if(!hiDrawing) { ctx.moveTo(xPos(th), yT(traj[th].tmax)); hiDrawing = true; }
-    else ctx.lineTo(xPos(th), yT(traj[th].tmax));
+  var prevFcst = null;
+  var segPts = [];
+  function flushHiSeg() {
+    if(segPts.length < 2) { segPts = []; return; }
+    ctx.beginPath();
+    ctx.moveTo(segPts[0].x, segPts[0].y);
+    for(var sp=1; sp<segPts.length; sp++) ctx.lineTo(segPts[sp].x, segPts[sp].y);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    segPts = [];
   }
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  for(var th=0; th<N; th++) {
+    if(traj[th].tmax === null) { flushHiSeg(); prevFcst = null; continue; }
+    var isFcst = traj[th].isForecast;
+    if(prevFcst !== null && isFcst !== prevFcst) flushHiSeg();
+    if(!segPts.length) {
+      ctx.setLineDash(isFcst ? [3,3] : []);
+      ctx.strokeStyle = isFcst ? 'rgba(255,120,80,0.20)' : 'rgba(255,120,80,0.42)';
+    }
+    segPts.push({x: xPos(th), y: yT(traj[th].tmax)});
+    prevFcst = isFcst;
+  }
+  flushHiSeg();
   ctx.setLineDash([]);
   ctx.restore();
+  // ── Column Cold Reserve — blue filled area, stronger gradient ──
+  var ccrS = segLine(function(t){ return yH(ccr(t)); });
+  if(ccrS.solid.length > 1) {
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(ccrS.solid[0].x, ccrS.solid[0].y);
+    for(var cp=1;cp<ccrS.solid.length;cp++){
+      var cx0=ccrS.solid[cp-1].x,cy0=ccrS.solid[cp-1].y,cx1=ccrS.solid[cp].x,cy1=ccrS.solid[cp].y;
+      ctx.bezierCurveTo((cx0+cx1)/2,cy0,(cx0+cx1)/2,cy1,cx1,cy1);
+    }
+    ctx.lineTo(ccrS.solid[ccrS.solid.length-1].x, dataBot);
+    ctx.lineTo(ccrS.solid[0].x, dataBot); ctx.closePath();
+    var cg = ctx.createLinearGradient(0, PAD.top, 0, dataBot);
+    cg.addColorStop(0,   'rgba(56,189,248,0.32)');
+    cg.addColorStop(0.5, 'rgba(56,189,248,0.12)');
+    cg.addColorStop(1,   'rgba(56,189,248,0.02)');
+    ctx.fillStyle = cg; ctx.fill(); ctx.restore();
+  }
+  drawLine(ccrS.solid,  'rgba(56,189,248,0.90)', 1.8, false);
+  drawLine(ccrS.dashed, 'rgba(56,189,248,0.45)', 1.8, true);
+
+// ── Surface freeze quality — gold dots, Mar 1 onward ──
+  for(var sd=marchFirstIdx; sd<N; sd++) {
+    if(traj[sd].surfaceRipeness === null) continue;
+    var sfqVal = sfq(traj[sd]);
+    var sfqAlpha = traj[sd].isForecast ? 0.45 : 0.90;
+    ctx.beginPath();
+    ctx.arc(xPos(sd), yH(sfqVal), 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(251,191,36,' + sfqAlpha + ')';
+    ctx.fill();
+  }
+
+  
 
   // ── Today vertical line ──
   if(todayIdx >= 0) {

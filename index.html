@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>CornCast 🌽 v23fiXXX</title>
+<title>CornCast 🌽 v23_new_</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <script>
 (function(){
@@ -1476,10 +1476,6 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
     // Pre-season label — icon centered in zone, text in top padding
     var psMidX = psX0 + (psX1 - psX0) / 2;
     var psMidY = PAD.top + (dataBot - PAD.top) / 2;
-    ctx.font = '13px -apple-system,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(120,160,190,0.35)';
-    ctx.fillText('❄️', psMidX, psMidY + 5);
     ctx.font = '7px -apple-system,sans-serif';
     ctx.fillStyle = 'rgba(120,160,190,0.45)';
     ctx.fillText('← Jan/Feb', psMidX, PAD.top - 10);
@@ -1690,16 +1686,20 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
   drawLine(ccrS.solid,  'rgba(56,189,248,0.90)', 1.8, false);
   drawLine(ccrS.dashed, 'rgba(56,189,248,0.45)', 1.8, true);
 
-// ── Surface freeze quality — gold dots, Mar 1 onward ──
-  for(var sd=marchFirstIdx; sd<N; sd++) {
-    if(traj[sd].surfaceRipeness === null) continue;
-    var sfqVal = sfq(traj[sd]);
-    var sfqAlpha = traj[sd].isForecast ? 0.45 : 0.90;
-    ctx.beginPath();
-    ctx.arc(xPos(sd), yH(sfqVal), 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(251,191,36,' + sfqAlpha + ')';
-    ctx.fill();
+// ── Surface freeze quality — thin gold line, Mar 1 onward ──
+  var sfqS = segLine(function(t){
+    return t.surfaceRipeness === null ? null : yH(sfq(t));
+  });
+  // Filter out null points before drawing
+  var sfqSolid = [], sfqDash = [];
+  for(var sq=marchFirstIdx; sq<N; sq++) {
+    if(traj[sq].surfaceRipeness === null) continue;
+    var pt = {x: xPos(sq), y: yH(sfq(traj[sq]))};
+    if(traj[sq].isForecast) sfqDash.push(pt); else sfqSolid.push(pt);
   }
+  if(sfqSolid.length && sfqDash.length) sfqDash.unshift(sfqSolid[sfqSolid.length-1]);
+  drawLine(sfqSolid, 'rgba(251,191,36,0.75)', 1.2, false);
+  drawLine(sfqDash,  'rgba(251,191,36,0.35)', 1.2, true);
 
   
 
@@ -1807,13 +1807,12 @@ function drawRipenessChart(canvasId, wd, month, cornWin) {
   }
 
 
-  // ── Auto-scroll to show target / today ──
+ // ── Auto-scroll: show 2 weeks back from today as left edge ──
   var scrollEl = canvas.parentElement;
   if(scrollEl && scrollEl.id === 'ripeness-scroll') {
-    var focusIdx = tgtIdx >= 0 ? tgtIdx : (todayIdx >= 0 ? todayIdx : N - 1);
-    var focusX = xPos(focusIdx);
-    var viewW = scrollEl.offsetWidth || 320;
-    scrollEl.scrollLeft = Math.max(0, focusX - viewW * 0.65);
+    var anchorIdx = todayIdx >= 0 ? todayIdx : (tgtIdx >= 0 ? tgtIdx : N - 1);
+    var windowStart = Math.max(0, anchorIdx - 14);
+    scrollEl.scrollLeft = Math.max(0, xPos(windowStart) - PAD.left - 8);
   }
 
   // ── Tap → info panel (below chart, always readable) ──

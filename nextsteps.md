@@ -8,9 +8,6 @@
    
 5. Incorproating DEM data in order to better evaluate terrain conditions.
   
-Expanding this to an area larger than the front range 
-
-
 Prerequisite 6a — ez verification table (research task, no coding)
 Goal: replace hand-estimated ski zone elevations with midpoint elevations derived from actual route data for all 24 peaks.
 Process: In a dedicated session, fetch all Indian Peaks route pages from frontrangeskimo.com and extract approach elevation ranges from route descriptions. Build a comparison table: Peak · Aspect · Current ez · Route base · Route top · Derived midpoint · Source. Cross-check against linked Caltopo maps for any aspects with vague descriptions. Flag any aspects with no frontrangeskimo coverage for manual Caltopo review.
@@ -24,8 +21,8 @@ Current ski zone elevations (ez) in the peaks database are hand-estimated with n
 6. Ski line elevation correction (use ez consistently throughout physics pipeline)
 The ez field already exists on every aspect and represents the actual ski zone elevation, not the summit. Currently all weather data is lapse-corrected to pk.el (summit), then only partially adjusted. The fix is to lapse-correct temperatures to ad.ez per-aspect inside cornWindow rather than to pk.el at fetch time. For peaks like Longs (summit 14,259’ vs ski line ~13,400’) this is a ~3°F difference that affects freeze quality, melt onset, and column cold content. Data infrastructure already in place — moderate change to cornWindow and temperature inputs. Physics motivation: the corn forms on the ski line, not the summit.
 
-7. Update the graphs 
+7. Expanding this to an area larger than the front range 
 
 8. is there a way to build a graph of snow quality incorporating SWe?
 
-9. how to account for the temps and therefore snow on the ski line rather thsn at thr peak elevations of each mointain. looking into the routes in the books you have read would be helpful. 
+10. 
